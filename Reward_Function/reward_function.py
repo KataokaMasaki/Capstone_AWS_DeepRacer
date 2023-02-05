@@ -3,13 +3,13 @@ import math
 
 class Reward:
     def __init__(self, verbose=False):
-        self.first_racingpoint_index = None
+        self.first_racingpoint_index = 0
         self.verbose = verbose
 
     def reward_function(self, params):
 
         # Import package (needed for heading)
-        import math
+        # import math
 
         ################## HELPER FUNCTIONS ###################
 
@@ -37,7 +37,7 @@ class Reward:
             return [closest_index, second_closest_index]
 
         def dist_to_racing_line(closest_coords, second_closest_coords, car_coords):
-            
+
             # Calculate the distances between 2 closest racing points
             a = abs(dist_2_points(x1=closest_coords[0],
                                   x2=second_closest_coords[0],
@@ -114,7 +114,9 @@ class Reward:
 
             return direction_diff
 
-        # Gives back indexes that lie between start and end index of a cyclical list 
+        # 循環リストの開始インデックスと終了インデックスの間にあるインデックスを返します。
+        # (開始インデックスが含まれ、終了インデックスは含まれない)
+        # Gives back indexes that lie between start and end index of a cyclical list
         # (start index is included, end index is not)
         def indexes_cyclical(start, end, array_len):
 
@@ -123,24 +125,33 @@ class Reward:
 
             return [index % array_len for index in range(start, end)]
 
+        # 今までのような状態が続いた場合、1周にかかる時間を計算する
         # Calculate how long car would take for entire lap, if it continued like it did until now
         def projected_time(first_index, closest_index, step_count, times_list):
 
+            # スタートからの経過時間を計算する
             # Calculate how much time has passed since start
             current_actual_time = (step_count-1) / 15
 
+            # どのインデックスが既に渡されているかを計算する
             # Calculate which indexes were already passed
-            indexes_traveled = indexes_cyclical(first_index, closest_index, len(times_list))
+            indexes_traveled = indexes_cyclical(
+                first_index, closest_index, len(times_list))
 
+            # もし車が最適な方向に進んでいたら、どれくらいの時間が経過していたかを計算する
             # Calculate how much time should have passed if car would have followed optimals
-            current_expected_time = sum([times_list[i] for i in indexes_traveled])
+            current_expected_time = sum(
+                [times_list[i] for i in indexes_traveled])
 
+            # 車が最適化に従った場合、1周にかかる時間を計算します。
             # Calculate how long one entire lap takes if car follows optimals
             total_expected_time = sum(times_list)
 
+            # 今までと同じように走った場合、1周するのにかかる時間を計算します。
             # Calculate how long car would take for entire lap, if it continued like it did until now
             try:
-                projected_time = (current_actual_time/current_expected_time) * total_expected_time
+                projected_time = (current_actual_time /
+                                  current_expected_time) * total_expected_time
             except:
                 projected_time = 9999
 
@@ -148,6 +159,8 @@ class Reward:
 
         #################### RACING LINE ######################
 
+        # スペインのコースに最適なレーシングライン
+        # 各行 [x,y,速度,時間(前点からの距離)]。
         # Optimal racing line for the Spain track
         # Each row: [x,y,speed,timeFromPreviousPoint]
         racing_track = [[0.34775, -2.173, 4.0, 0.07904],
@@ -411,6 +424,7 @@ class Reward:
 
         ################## INPUT PARAMETERS ###################
 
+        # 全ての入力パラメータを読み込む
         # Read all input parameters
         all_wheels_on_track = params['all_wheels_on_track']
         x = params['x']
@@ -439,7 +453,7 @@ class Reward:
 
         # Save first racingpoint of episode for later
         if self.verbose == True:
-            self.first_racingpoint_index = 0 # this is just for testing purposes
+            self.first_racingpoint_index = 0  # this is just for testing purposes
         if steps == 1:
             self.first_racingpoint_index = closest_index
 
@@ -467,16 +481,18 @@ class Reward:
         reward += speed_reward * SPEED_MULTIPLE
 
         # Reward if less steps
-        REWARD_PER_STEP_FOR_FASTEST_TIME = 1 
+        REWARD_PER_STEP_FOR_FASTEST_TIME = 1
         STANDARD_TIME = 37
         FASTEST_TIME = 27
         times_list = [row[3] for row in racing_track]
-        projected_time = projected_time(self.first_racingpoint_index, closest_index, steps, times_list)
+        projected_time = projected_time(
+            self.first_racingpoint_index, closest_index, steps, times_list)
         try:
             steps_prediction = projected_time * 15 + 1
             reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME*(FASTEST_TIME) /
                                            (STANDARD_TIME-FASTEST_TIME))*(steps_prediction-(STANDARD_TIME*15+1)))
-            steps_reward = min(REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
+            steps_reward = min(REWARD_PER_STEP_FOR_FASTEST_TIME,
+                               reward_prediction / steps_prediction)
         except:
             steps_reward = 0
         reward += steps_reward
@@ -486,33 +502,35 @@ class Reward:
             optimals[0:2], optimals_second[0:2], [x, y], heading)
         if direction_diff > 30:
             reward = 1e-3
-            
+
         # Zero reward of obviously too slow
         speed_diff_zero = optimals[2]-speed
         if speed_diff_zero > 0.5:
             reward = 1e-3
-            
+
         ## Incentive for finishing the lap in less steps ##
-        REWARD_FOR_FASTEST_TIME = 1500 # should be adapted to track length and other rewards
+        # should be adapted to track length and other rewards
+        REWARD_FOR_FASTEST_TIME = 1500
         STANDARD_TIME = 37  # seconds (time that is easily done by model)
         FASTEST_TIME = 27  # seconds (best time of 1st place on the track)
         if progress == 100:
             finish_reward = max(1e-3, (-REWARD_FOR_FASTEST_TIME /
-                      (15*(STANDARD_TIME-FASTEST_TIME)))*(steps-STANDARD_TIME*15))
+                                       (15*(STANDARD_TIME-FASTEST_TIME)))*(steps-STANDARD_TIME*15))
         else:
             finish_reward = 0
         reward += finish_reward
-        
+
         ## Zero reward if off track ##
         if all_wheels_on_track == False:
             reward = 1e-3
 
         ####################### VERBOSE #######################
-        
+
         if self.verbose == True:
             print("Closest index: %i" % closest_index)
             print("Distance to racing line: %f" % dist)
-            print("=== Distance reward (w/out multiple): %f ===" % (distance_reward))
+            print("=== Distance reward (w/out multiple): %f ===" %
+                  (distance_reward))
             print("Optimal speed: %f" % optimals[2])
             print("Speed difference: %f" % speed_diff)
             print("=== Speed reward (w/out multiple): %f ===" % speed_reward)
@@ -520,15 +538,15 @@ class Reward:
             print("Predicted time: %f" % projected_time)
             print("=== Steps reward: %f ===" % steps_reward)
             print("=== Finish reward: %f ===" % finish_reward)
-            
+
         #################### RETURN REWARD ####################
-        
+
         # Always return a float value
         return float(reward)
 
 
-reward_object = Reward() # add parameter verbose=True to get noisy output for testing
-
-
 def reward_function(params):
+
+    reward_object = Reward()  # add parameter verbose=True to get noisy output for testing
+
     return reward_object.reward_function(params)
