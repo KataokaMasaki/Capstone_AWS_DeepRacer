@@ -8,9 +8,6 @@ class Reward:
 
     def reward_function(self, params):
 
-        # Import package (needed for heading)
-        import math
-
         ################## HELPER FUNCTIONS ###################
 
         def dist_2_points(x1, x2, y1, y2):
